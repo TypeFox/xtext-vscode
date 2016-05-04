@@ -1,0 +1,4 @@
+include 'org.xtext.example.statemachine'
+include 'org.xtext.example.statemachine.ide'
+include 'io.typefox.xtext.vscode'
+include 'io.typefox.xtext.vscode.statemachine'

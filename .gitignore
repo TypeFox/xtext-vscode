@@ -1,0 +1,7 @@
+.gradle/
+build/
+gradle.prefs
+*.class
+*.log
+*._trace
+*.xtendbin
