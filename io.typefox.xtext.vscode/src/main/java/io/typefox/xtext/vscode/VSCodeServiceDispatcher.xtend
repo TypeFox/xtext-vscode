@@ -64,6 +64,8 @@ class VSCodeServiceDispatcher {
 				initialize(context)
 			case 'textDocument/completion':
 				callContentAssistService(context)
+			case 'textDocument/didOpen':
+				null
 			default:
 				throw new InvalidRequestException('The method ' + methodName + ' is not supported.', messageId, ResponseError.METHOD_NOT_FOUND)
 		}
@@ -114,13 +116,16 @@ class VSCodeServiceDispatcher {
 	
 	protected def callContentAssistService(IServiceContext context) {
 		val params = context.getRequestParams(TextDocumentPositionParams)
+		// Support protocol version 1.0
+		if (params.textDocument === null && params.uri !== null)
+			params.textDocument = new TextDocumentIdentifier => [uri = params.uri]
 		val document = getDocumentAccess(params.textDocument, context)
 		val offset = document.getOffset(params.position)
 		val selection = new TextRegion(offset, 0)
 		val proposals = contentAssistService.createProposals(document, selection, offset, ContentAssistService.DEFAULT_PROPOSALS_LIMIT)
 		val result = proposals.entries.map[ entry |
 			new CompletionItem => [
-				label = entry.label
+				label = entry.label ?: entry.proposal
 				detail = entry.description
 				insertText = entry.proposal
 			]

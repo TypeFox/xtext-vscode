@@ -1,0 +1,37 @@
+{
+    "name": "statemachine",
+    "displayName": "Statemachine",
+    "description": "State Machine Language",
+    "version": "0.0.1",
+    "publisher": "TypeFox",
+    "engines": {
+        "vscode": "^1.0.0"
+    },
+    "categories": [
+        "Languages"
+    ],
+	"activationEvents": [
+		"onLanguage:statemachine"
+	],
+	"main": "out/extension",
+    "contributes": {
+        "languages": [{
+            "id": "statemachine",
+            "aliases": ["statemachine"],
+            "extensions": [".statemachine"],
+            "configuration": "./statemachine.configuration.json"
+        }],
+        "grammars": [{
+            "language": "statemachine",
+            "scopeName": "text.statemachine",
+            "path": "./syntaxes/statemachine.tmLanguage"
+        }]
+    },
+	"devDependencies": {
+		"typescript": "^1.8.10",
+		"vscode": "^0.11.12"
+	},
+    "dependencies": {
+        "vscode-languageclient": "^2.1.0"
+    }
+}

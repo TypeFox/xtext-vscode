@@ -5,4 +5,8 @@ dependencies {
 	compile project(':org.xtext.example.statemachine.ide')
 }
 
-mainClassName = "io.typefox.xtext.vscode.statemachine.LanguageServerLauncher"
+mainClassName = "io.typefox.xtext.vscode.statemachine.SocketServerLauncher"
+
+startScripts {
+    applicationName = 'statemachine'
+}

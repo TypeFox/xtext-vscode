@@ -1,5 +1,8 @@
 .gradle/
 build/
+bin/
+out/
+node_modules/
 gradle.prefs
 *.class
 *.log

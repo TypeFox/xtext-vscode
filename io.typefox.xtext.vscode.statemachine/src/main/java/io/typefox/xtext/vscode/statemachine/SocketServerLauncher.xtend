@@ -11,33 +11,49 @@ import com.google.inject.Provider
 import io.typefox.xtext.vscode.LanguageServer
 import java.io.IOException
 import java.io.PrintWriter
+import java.net.InetSocketAddress
+import java.nio.channels.Channels
+import java.nio.channels.ServerSocketChannel
 import java.util.List
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class LanguageServerLauncher {
+class SocketServerLauncher {
 	
 	def static void main(String[] args) {
 		val List<ExecutorService> executorServices = newArrayList
-		var PrintWriter log
+		var ServerSocketChannel serverSocket
 		try {
-			log = new PrintWriter('LanguageServer.log')
 			val Provider<ExecutorService> executorServiceProvider = [Executors.newCachedThreadPool => [executorServices += it]]
 			val resourceBaseProvider = new LanguageServer.ResourceBaseProvider
 			val injector = new StatemachineWebSetup(executorServiceProvider, resourceBaseProvider).createInjectorAndDoEMFRegistration()
 			val server = injector.getInstance(LanguageServer)
-			server.log = log
+			server.log = new PrintWriter(System.out)
 			server.resourceBaseProvider = resourceBaseProvider
 			
-			server.serve(System.in, System.out)
+			serverSocket = ServerSocketChannel.open()
+			val address = new InetSocketAddress('localhost', 5007)
+			serverSocket.bind(address)
+			while (!server.exitRequested) {
+				println('Listening to ' + address)
+				val channel = serverSocket.accept()
+				val in = Channels.newInputStream(channel)
+				val out = Channels.newOutputStream(channel)
+				println('Connection accepted')
+				server.serve(in, out)
+				channel.close()
+				println('Connection closed')
+			}
 			
 		} catch (Throwable t) {
 			t.printStackTrace()
 		} finally {
 			executorServices.forEach[shutdown()]
-			try {
-				log?.close()
-			} catch (IOException e) {}
+			if (serverSocket !== null) {
+				try {
+					serverSocket.close()
+				} catch (IOException e) {}
+			}
 		}
 	}
 	

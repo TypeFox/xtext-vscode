@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>fileTypes</key>
+	<array>
+		<string>*.statemachine</string>
+	</array>
+	<key>name</key>
+	<string>statemachine</string>
+	<key>patterns</key>
+	<array>
+		<dict>
+			<key>name</key>
+			<string>keyword.control.statemachine</string>
+			<key>match</key>
+			<string>\b(and|end|goto|if|input|output|set|signal|state)\b</string>
+		</dict>
+	</array>
+	<key>scopeName</key>
+	<string>text.statemachine</string>
+</dict>
+</plist>

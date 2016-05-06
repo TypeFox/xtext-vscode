@@ -17,8 +17,9 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
-import java.io.PrintStream
+import java.io.OutputStream
 import java.io.PrintWriter
+import java.io.UnsupportedEncodingException
 import org.eclipse.emf.common.util.URI
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtext.web.server.persistence.IResourceBaseProvider
@@ -36,6 +37,9 @@ class LanguageServer {
 	
 	val session = new HashMapSession
 	
+	@Accessors(PUBLIC_GETTER)
+	boolean exitRequested
+	
 	@Accessors
 	ResourceBaseProvider resourceBaseProvider
 	
@@ -44,8 +48,10 @@ class LanguageServer {
 	
 	private def logException(Throwable throwable) {
 		try {
-			if (log !== null)
+			if (log !== null) {
 				throwable.printStackTrace(log)
+				log.flush()
+			}
 		} catch (IOException e) {
 			throwable.printStackTrace()
 		}
@@ -55,22 +61,39 @@ class LanguageServer {
 		try {
 			if (log !== null) {
 				log.println(title)
-				log.println(content)
+				log.println('\t' + content)
+				log.flush()
 			}
 		} catch (IOException e) {
 			e.printStackTrace()
 		}
 	}
 	
-	def serve(InputStream in, PrintStream out) throws IOException {
-		var c = in.read
+	def serve(InputStream in, OutputStream out) throws IOException {
 		var StringBuilder builder
-		var contentLength = 0
+		var newLine = true
+		var contentLength = -1
 		var charset = 'UTF-8'
 		var keepServing = true
+		var c = in.read
 		while (keepServing && c != -1) {
-			if (c.matches('\r') || c.matches('\n')) {
-				if (builder !== null) {
+			if (c.matches('\n')) {
+				if (newLine) {
+					if (contentLength < 0)
+						throw new IllegalStateException('Missing header ' + CONTENT_LENGTH)
+					val reader = new InputStreamReader(in, charset)
+					val buffer = newCharArrayOfSize(contentLength)
+					val charsRead = reader.read(buffer, 0, contentLength)
+					try {
+						if (charsRead < 0)
+							keepServing = false
+						else
+							keepServing = handleRequest(new String(buffer), out, charset)
+					} catch (UnsupportedEncodingException e) {
+						logException(e)
+					}
+					contentLength = -1
+				} else if (builder !== null) {
 					val line = builder.toString
 					val sepIndex = line.indexOf(':')
 					if (sepIndex >= 0) {
@@ -79,7 +102,9 @@ class LanguageServer {
 							case CONTENT_LENGTH:
 								try {
 									contentLength = Integer.parseInt(line.substring(sepIndex + 1).trim)
-								} catch (NumberFormatException e) {}
+								} catch (NumberFormatException e) {
+									logException(e)
+								}
 							case CONTENT_TYPE: {
 								val charsetIndex = line.indexOf('charset=')
 								if (charsetIndex >= 0)
@@ -87,24 +112,14 @@ class LanguageServer {
 							}
 						}
 					}
+					builder = null
 				}
-				builder = null
-			} else if (c.matches('{')) {
-				if (contentLength == 0)
-					throw new IllegalStateException('Missing header ' + CONTENT_LENGTH)
-				val reader = new InputStreamReader(in, charset)
-				val buffer = newCharArrayOfSize(contentLength)
-				buffer.set(0, c as char)
-				val charsRead = reader.read(buffer, 1, contentLength - 1)
-				if (charsRead < 0)
-					keepServing = false
-				else
-					keepServing = handleRequest(new String(buffer), out)
-				contentLength = 0
-			} else {
+				newLine = true
+			} else if (!c.matches('\r')) {
 				if (builder === null)
 					builder = new StringBuilder
 				builder.append(c as char)
+				newLine = false
 			}
 			c = in.read
 		}
@@ -114,7 +129,8 @@ class LanguageServer {
 		c1 == c2
 	}
 	
-	protected def boolean handleRequest(String content, PrintStream out) throws IOException {
+	protected def boolean handleRequest(String content, OutputStream out, String charset)
+			throws IOException {
 		var Message response
 		try {
 			logMessage('Request:', content)
@@ -124,9 +140,12 @@ class LanguageServer {
 					case 'initialize':
 						if (request.params instanceof InitializeParams)
 							initialize(request.params as InitializeParams)
-					case 'shutdown',
-					case 'exit':
+					case 'shutdown':
 						return false
+					case 'exit': {
+						exitRequested = true
+						return false
+					}
 				}
 			}
 			
@@ -143,12 +162,10 @@ class LanguageServer {
 		if (response !== null) {
 			val responseText = jsonHandler.serialize(response)
 			logMessage('Response:', responseText)
-			out.print(CONTENT_LENGTH)
-			out.print(': ')
-			out.print(Integer.toString(responseText.length))
-			out.print('\r\n\r\n')
-			out.print(responseText)
-			out.print('\r\n')
+			val responseBytes = responseText.getBytes(charset)
+			val header = CONTENT_LENGTH + ': ' + responseBytes.length + '\r\n\r\n'
+			out.write(header.bytes)
+			out.write(responseBytes)
 		}
 		return true
 	}
@@ -176,7 +193,10 @@ class LanguageServer {
 		String resourceBase = ''
 		
 		override getFileURI(String resourceId) {
-			URI.createFileURI(resourceBase + File.separator + resourceId)
+			if (resourceId.startsWith('file://'))
+				URI.createURI(resourceId)
+			else
+				URI.createFileURI(resourceBase + File.separator + resourceId)
 		}
 		
 	}

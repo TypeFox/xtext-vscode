@@ -25,6 +25,11 @@ class TextDocumentPositionParams {
 	TextDocumentIdentifier textDocument
 	
 	/**
+	 * Legacy property to support protocol version 1.0 requests.
+	 */
+	String uri
+	
+	/**
 	 * The position inside the text document.
 	 */
 	Position position

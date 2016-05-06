@@ -8,13 +8,16 @@
 package io.typefox.xtext.vscode
 
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.google.gson.JsonSerializer
 import io.typefox.xtext.vscode.protocol.CodeLens
 import io.typefox.xtext.vscode.protocol.CompletionItem
 import io.typefox.xtext.vscode.protocol.Message
 import io.typefox.xtext.vscode.protocol.NotificationMessage
 import io.typefox.xtext.vscode.protocol.RequestMessage
+import io.typefox.xtext.vscode.protocol.ResponseMessage
 import io.typefox.xtext.vscode.protocol.params.CodeActionParams
 import io.typefox.xtext.vscode.protocol.params.CodeLensParams
 import io.typefox.xtext.vscode.protocol.params.DidChangeConfigurationParams
@@ -34,7 +37,32 @@ import io.typefox.xtext.vscode.protocol.params.WorkspaceSymbolParams
 class VSCodeJsonHandler {
 	
 	val jsonParser = new JsonParser
-	val gson = new Gson
+	val Gson gson
+	
+	new() {
+		val JsonSerializer<ResponseMessage> responseSerializer = [ src, type, it |
+			val result = new JsonObject
+			result.addProperty('jsonrpc', src.jsonrpc)
+			result.addProperty('id', src.id)
+			if (src.result !== null)
+				result.add('result', serialize(src.result))
+			if (src.error !== null)
+				result.add('error', serialize(src.error))
+			return result
+		]
+		val JsonSerializer<NotificationMessage> notificationSerializer = [ src, type, it |
+			val result = new JsonObject
+			result.addProperty('jsonrpc', src.jsonrpc)
+			result.addProperty('method', src.method)
+			if (src.params !== null)
+				result.add('params', serialize(src.params))
+			return result
+		]
+		gson = new GsonBuilder()
+			.registerTypeAdapter(ResponseMessage, responseSerializer)
+			.registerTypeAdapter(NotificationMessage, notificationSerializer)
+			.create()
+	}
 	
 	def Message parseMessage(String input) {
 		val json = jsonParser.parse(input).asJsonObject
