@@ -26,6 +26,12 @@ class DidChangeTextDocumentParams {
 	VersionedTextDocumentIdentifier textDocument
 	
 	/**
+	 * Legacy property to support protocol version 1.0 requests.
+	 */
+	@Deprecated
+	String uri
+	
+	/**
 	 * The actual content changes.
 	 */
 	TextDocumentContentChangeEvent[] contentChanges

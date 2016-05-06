@@ -9,29 +9,35 @@
 
 import com.google.inject.Inject
 import com.google.inject.Singleton
+import io.typefox.xtext.vscode.protocol.CompletionItem
+import io.typefox.xtext.vscode.protocol.Message
+import io.typefox.xtext.vscode.protocol.NotificationMessage
+import io.typefox.xtext.vscode.protocol.Position
+import io.typefox.xtext.vscode.protocol.RequestMessage
+import io.typefox.xtext.vscode.protocol.ResponseError
+import io.typefox.xtext.vscode.protocol.ResponseMessage
+import io.typefox.xtext.vscode.protocol.TextDocumentIdentifier
+import io.typefox.xtext.vscode.protocol.TextDocumentItem
+import io.typefox.xtext.vscode.protocol.VersionedTextDocumentIdentifier
+import io.typefox.xtext.vscode.protocol.options.CompletionOptions
+import io.typefox.xtext.vscode.protocol.options.ServerCapabilities
+import io.typefox.xtext.vscode.protocol.params.DidChangeTextDocumentParams
+import io.typefox.xtext.vscode.protocol.params.DidCloseTextDocumentParams
+import io.typefox.xtext.vscode.protocol.params.DidOpenTextDocumentParams
+import io.typefox.xtext.vscode.protocol.params.DidSaveTextDocumentParams
+import io.typefox.xtext.vscode.protocol.params.TextDocumentPositionParams
+import io.typefox.xtext.vscode.protocol.result.InitializeResult
 import java.io.IOException
 import org.eclipse.xtext.util.TextRegion
 import org.eclipse.xtext.util.internal.Log
 import org.eclipse.xtext.web.server.contentassist.ContentAssistService
+import org.eclipse.xtext.web.server.model.IXtextWebDocument
 import org.eclipse.xtext.web.server.model.PrecomputedServiceRegistry
 import org.eclipse.xtext.web.server.model.XtextWebDocument
 import org.eclipse.xtext.web.server.model.XtextWebDocumentAccess
 import org.eclipse.xtext.web.server.persistence.IServerResourceHandler
 import org.eclipse.xtext.web.server.syntaxcoloring.HighlightingService
 import org.eclipse.xtext.web.server.validation.ValidationService
-import io.typefox.xtext.vscode.protocol.CompletionItem
-import io.typefox.xtext.vscode.protocol.Message
-import io.typefox.xtext.vscode.protocol.NotificationMessage
-import io.typefox.xtext.vscode.protocol.Position
-import io.typefox.xtext.vscode.protocol.RequestMessage
-import io.typefox.xtext.vscode.protocol.ResponseMessage
-import io.typefox.xtext.vscode.protocol.TextDocumentIdentifier
-import io.typefox.xtext.vscode.protocol.VersionedTextDocumentIdentifier
-import io.typefox.xtext.vscode.protocol.options.ServerCapabilities
-import io.typefox.xtext.vscode.protocol.params.TextDocumentPositionParams
-import io.typefox.xtext.vscode.protocol.result.InitializeResult
-import io.typefox.xtext.vscode.protocol.options.CompletionOptions
-import io.typefox.xtext.vscode.protocol.ResponseError
 
 @Singleton
 @Log
@@ -61,18 +67,25 @@ class VSCodeServiceDispatcher {
 				throw new InvalidRequestException("Invalid message type.", null)
 		switch methodName {
 			case 'initialize':
-				initialize(context)
-			case 'textDocument/completion':
-				callContentAssistService(context)
+				return initialize(context)
 			case 'textDocument/didOpen':
-				null
+				documentOpened(context)
+			case 'textDocument/didChange':
+				documentChanged(context)
+			case 'textDocument/didSave':
+				documentSaved(context)
+			case 'textDocument/didClose':
+				documentClosed(context)
+			case 'textDocument/completion':
+				return callContentAssistService(context)
 			default:
 				throw new InvalidRequestException('The method ' + methodName + ' is not supported.', messageId, ResponseError.METHOD_NOT_FOUND)
 		}
+		return null
 	}
 	
 	protected def configure(ServerCapabilities it) {
-		textDocumentSync = ServerCapabilities.SYNC_NONE
+		textDocumentSync = ServerCapabilities.SYNC_INCREMENTAL
 		completionProvider = new CompletionOptions
 		return it
 	}
@@ -114,6 +127,57 @@ class VSCodeServiceDispatcher {
 		respond(result, context)
 	}
 	
+	protected def void documentOpened(IServiceContext context) {
+		val params = context.getRequestParams(DidOpenTextDocumentParams)
+		val document = getDocumentAccess(params, context)
+		// Support protocol version 1.0
+		if (params.textDocument === null && params.text !== null)
+			params.textDocument = new TextDocumentItem => [
+				uri = params.uri
+				text = params.text
+			]
+		if (params.textDocument?.text !== null) {
+			document.modify[ it, cancelIndicator |
+				text = params.textDocument.text
+				if (params.textDocument.version != 0)
+					resource.modificationStamp = params.textDocument.version
+				return null
+			]
+		}
+	}
+	
+	protected def void documentChanged(IServiceContext context) {
+		val params = context.getRequestParams(DidChangeTextDocumentParams)
+		// Support protocol version 1.0
+		if (params.textDocument === null && params.uri !== null)
+			params.textDocument = new VersionedTextDocumentIdentifier => [uri = params.uri]
+		val document = getDocumentAccess(params.textDocument, context)
+		document.modify[ it, cancelIndicator |
+			dirty = true
+			for (change : params.contentChanges) {
+				val offset = getOffset(change.range.start)
+				updateText(change.text, offset, change.rangeLength)
+			}
+			if (params.textDocument.version != 0)
+				resource.modificationStamp = params.textDocument.version
+			return null
+		]
+	}
+	
+	protected def void documentSaved(IServiceContext context) {
+		val params = context.getRequestParams(DidSaveTextDocumentParams)
+		val document = getDocumentAccess(params.textDocument, context)
+		document.modify[ it, cancelIndicator |
+			dirty = false
+			return null
+		]
+	}
+	
+	protected def void documentClosed(IServiceContext context) {
+		val params = context.getRequestParams(DidCloseTextDocumentParams)
+		context.session.remove(XtextWebDocument -> params.textDocument.uri)
+	}
+	
 	protected def callContentAssistService(IServiceContext context) {
 		val params = context.getRequestParams(TextDocumentPositionParams)
 		// Support protocol version 1.0
@@ -134,19 +198,17 @@ class VSCodeServiceDispatcher {
 	}
 	
 	protected def getDocumentAccess(TextDocumentIdentifier docIdentifier, IServiceContext context) {
+		getDocumentAccess(docIdentifier, context, false)
+	}
+	
+	protected def getDocumentAccess(TextDocumentIdentifier docIdentifier, IServiceContext context,
+			boolean includeRequiredStateId) {
 		val document = getResourceDocument(docIdentifier.uri, context)
-		if (document === null)
-			throw new InvalidRequestException('The requested resource was not found.', context.messageId)
-		val requiredStateId = if (docIdentifier instanceof VersionedTextDocumentIdentifier)
-			Integer.toString(docIdentifier.version)
+		val requiredStateId = if (includeRequiredStateId && docIdentifier instanceof VersionedTextDocumentIdentifier)
+			Integer.toString((docIdentifier as VersionedTextDocumentIdentifier).version)
 		return documentAccessFactory.create(document, requiredStateId, false)
 	}
 	
-	/**
-	 * Obtain a document from the session store, and if it is not present there, ask the
-	 * {@link IServerResourceHandler} to provide it. In case that resource handler fails
-	 * to provide the document, {@code null} is returned instead.
-	 */
 	protected def getResourceDocument(String resourceId, IServiceContext context) {
 		try {
 			val document = context.session.get(XtextWebDocument -> resourceId, [
@@ -154,27 +216,30 @@ class VSCodeServiceDispatcher {
 			])
 			return document
 		} catch (IOException ioe) {
-			return null
+			throw new InvalidRequestException('The requested resource was not found.', context.messageId)
 		}
 	}
 	
 	protected def int getOffset(XtextWebDocumentAccess document, Position position) {
-		document.readOnly[ it, cancelIndicator |
-			var row = 0
-			var col = 0
-			var offset = 0
-			while (offset < text.length && row < position.line && col < position.character) {
-				val c = text.charAt(offset)
-				if (c == '\n'.charAt(0)) {
-					row++
-					col = 0
-				} else {
-					col++
-				}
-				offset++
+		document.readOnly[it, cancelIndicator | getOffset(position)]
+	}
+	
+	protected def int getOffset(IXtextWebDocument document, Position position) {
+		var row = 0
+		var col = 0
+		var offset = 0
+		val text = document.text
+		while (offset < text.length && (row < position.line || col < position.character)) {
+			val c = text.charAt(offset)
+			if (c == '\n'.charAt(0)) {
+				row++
+				col = 0
+			} else {
+				col++
 			}
-			return offset
-		]
+			offset++
+		}
+		return offset
 	}
 	
 }

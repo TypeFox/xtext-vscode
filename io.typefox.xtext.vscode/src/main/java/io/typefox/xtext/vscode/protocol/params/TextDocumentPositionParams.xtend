@@ -27,6 +27,7 @@ class TextDocumentPositionParams {
 	/**
 	 * Legacy property to support protocol version 1.0 requests.
 	 */
+	@Deprecated
 	String uri
 	
 	/**

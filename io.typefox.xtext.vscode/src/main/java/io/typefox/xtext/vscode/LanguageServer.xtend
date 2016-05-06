@@ -23,6 +23,7 @@ import java.io.UnsupportedEncodingException
 import org.eclipse.emf.common.util.URI
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtext.web.server.persistence.IResourceBaseProvider
+import io.typefox.xtext.vscode.protocol.NotificationMessage
 
 class LanguageServer {
 	
@@ -71,7 +72,7 @@ class LanguageServer {
 	
 	def serve(InputStream in, OutputStream out) throws IOException {
 		var StringBuilder builder
-		var newLine = true
+		var newLine = false
 		var contentLength = -1
 		var charset = 'UTF-8'
 		var keepServing = true
@@ -133,9 +134,9 @@ class LanguageServer {
 			throws IOException {
 		var Message response
 		try {
-			logMessage('Request:', content)
 			val request = jsonHandler.parseMessage(content)
 			if (request instanceof RequestMessage) {
+				logMessage('Request:', content)
 				switch request.method {
 					case 'initialize':
 						if (request.params instanceof InitializeParams)
@@ -147,6 +148,8 @@ class LanguageServer {
 						return false
 					}
 				}
+			} else if (request instanceof NotificationMessage) {
+				logMessage('Notification:', content)
 			}
 			
 			val context = new IServiceContext.Impl(request, session)

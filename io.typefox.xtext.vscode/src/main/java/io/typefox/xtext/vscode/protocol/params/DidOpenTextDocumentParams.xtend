@@ -26,4 +26,10 @@ class DidOpenTextDocumentParams extends TextDocumentIdentifier {
 	 */
 	TextDocumentItem textDocument
 	
+	/**
+	 * Legacy property to support protocol version 1.0 requests.
+	 */
+	@Deprecated
+	String text
+	
 }
