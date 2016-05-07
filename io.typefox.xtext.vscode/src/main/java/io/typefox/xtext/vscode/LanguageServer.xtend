@@ -8,7 +8,9 @@
 package io.typefox.xtext.vscode
 
 import com.google.inject.Inject
+import com.google.inject.Singleton
 import io.typefox.xtext.vscode.protocol.Message
+import io.typefox.xtext.vscode.protocol.NotificationMessage
 import io.typefox.xtext.vscode.protocol.RequestMessage
 import io.typefox.xtext.vscode.protocol.ResponseError
 import io.typefox.xtext.vscode.protocol.ResponseMessage
@@ -23,9 +25,9 @@ import java.io.UnsupportedEncodingException
 import org.eclipse.emf.common.util.URI
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtext.web.server.persistence.IResourceBaseProvider
-import io.typefox.xtext.vscode.protocol.NotificationMessage
 
-class LanguageServer {
+@Singleton
+class LanguageServer implements INotificationAcceptor {
 	
 	public static val JSONRPC_VERSION = '2.0'
 	
@@ -41,11 +43,13 @@ class LanguageServer {
 	@Accessors(PUBLIC_GETTER)
 	boolean exitRequested
 	
-	@Accessors
+	@Accessors(PUBLIC_SETTER)
 	ResourceBaseProvider resourceBaseProvider
 	
-	@Accessors
+	@Accessors(PUBLIC_SETTER)
 	PrintWriter log
+	
+	OutputStream out
 	
 	private def logException(Throwable throwable) {
 		try {
@@ -71,31 +75,39 @@ class LanguageServer {
 	}
 	
 	def serve(InputStream in, OutputStream out) throws IOException {
-		var StringBuilder builder
+		this.out = out
+		var StringBuilder headerBuilder
+		var StringBuilder debugBuilder
 		var newLine = false
 		var contentLength = -1
 		var charset = 'UTF-8'
 		var keepServing = true
 		var c = in.read
 		while (keepServing && c != -1) {
+			if (debugBuilder === null)
+				debugBuilder = new StringBuilder
+			debugBuilder.append(c as char)
 			if (c.matches('\n')) {
 				if (newLine) {
-					if (contentLength < 0)
+					if (contentLength < 0) {
+						System.err.println('Input: "' + debugBuilder + '"')
 						throw new IllegalStateException('Missing header ' + CONTENT_LENGTH)
-					val reader = new InputStreamReader(in, charset)
-					val buffer = newCharArrayOfSize(contentLength)
-					val charsRead = reader.read(buffer, 0, contentLength)
+					}
 					try {
+						val reader = new InputStreamReader(in, charset)
+						val buffer = newCharArrayOfSize(contentLength)
+						val charsRead = reader.read(buffer, 0, contentLength)
 						if (charsRead < 0)
 							keepServing = false
 						else
-							keepServing = handleRequest(new String(buffer), out, charset)
+							keepServing = handleRequest(new String(buffer), charset)
 					} catch (UnsupportedEncodingException e) {
 						logException(e)
 					}
 					contentLength = -1
-				} else if (builder !== null) {
-					val line = builder.toString
+					debugBuilder = null
+				} else if (headerBuilder !== null) {
+					val line = headerBuilder.toString
 					val sepIndex = line.indexOf(':')
 					if (sepIndex >= 0) {
 						val key = line.substring(0, sepIndex).trim
@@ -113,13 +125,13 @@ class LanguageServer {
 							}
 						}
 					}
-					builder = null
+					headerBuilder = null
 				}
 				newLine = true
 			} else if (!c.matches('\r')) {
-				if (builder === null)
-					builder = new StringBuilder
-				builder.append(c as char)
+				if (headerBuilder === null)
+					headerBuilder = new StringBuilder
+				headerBuilder.append(c as char)
 				newLine = false
 			}
 			c = in.read
@@ -130,7 +142,7 @@ class LanguageServer {
 		c1 == c2
 	}
 	
-	protected def boolean handleRequest(String content, OutputStream out, String charset)
+	protected def boolean handleRequest(String content, String charset)
 			throws IOException {
 		var Message response
 		try {
@@ -149,7 +161,7 @@ class LanguageServer {
 					}
 				}
 			} else if (request instanceof NotificationMessage) {
-				logMessage('Notification:', content)
+				logMessage('Client Notification:', content)
 			}
 			
 			val context = new IServiceContext.Impl(request, session)
@@ -162,15 +174,31 @@ class LanguageServer {
 			logException(e)
 			response = respond(e.message, ResponseError.INTERNAL_ERROR, null)
 		}
-		if (response !== null) {
-			val responseText = jsonHandler.serialize(response)
-			logMessage('Response:', responseText)
-			val responseBytes = responseText.getBytes(charset)
-			val header = CONTENT_LENGTH + ': ' + responseBytes.length + '\r\n\r\n'
-			out.write(header.bytes)
-			out.write(responseBytes)
-		}
+		if (response !== null)
+			send(response, charset)
 		return true
+	}
+	
+	override accept(NotificationMessage message) {
+		send(message, 'UTF-8')
+	}
+	
+	protected def send(Message message, String charset) {
+		if (out !== null) {
+			if (message.jsonrpc === null)
+				message.jsonrpc = JSONRPC_VERSION
+			synchronized (out) {
+				val messageText = jsonHandler.serialize(message)
+				if (message instanceof ResponseMessage)
+					logMessage('Response:', messageText)
+				else if (message instanceof NotificationMessage)
+					logMessage('Server Notification:', messageText)
+				val responseBytes = messageText.getBytes(charset)
+				val header = CONTENT_LENGTH + ': ' + responseBytes.length + '\r\n\r\n'
+				out.write(header.bytes)
+				out.write(responseBytes)
+			}
+		}
 	}
 	
 	protected def ResponseMessage respond(String errorMessage, int errorCode, String requestId) {

@@ -5,14 +5,13 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  *******************************************************************************/
- package io.typefox.xtext.vscode
+package io.typefox.xtext.vscode
 
 import com.google.inject.Inject
 import com.google.inject.Singleton
 import io.typefox.xtext.vscode.protocol.CompletionItem
 import io.typefox.xtext.vscode.protocol.Message
 import io.typefox.xtext.vscode.protocol.NotificationMessage
-import io.typefox.xtext.vscode.protocol.Position
 import io.typefox.xtext.vscode.protocol.RequestMessage
 import io.typefox.xtext.vscode.protocol.ResponseError
 import io.typefox.xtext.vscode.protocol.ResponseMessage
@@ -27,31 +26,28 @@ import io.typefox.xtext.vscode.protocol.params.DidOpenTextDocumentParams
 import io.typefox.xtext.vscode.protocol.params.DidSaveTextDocumentParams
 import io.typefox.xtext.vscode.protocol.params.TextDocumentPositionParams
 import io.typefox.xtext.vscode.protocol.result.InitializeResult
+import io.typefox.xtext.vscode.validation.NotifyingValidationService
 import java.io.IOException
 import org.eclipse.xtext.util.TextRegion
 import org.eclipse.xtext.util.internal.Log
 import org.eclipse.xtext.web.server.contentassist.ContentAssistService
-import org.eclipse.xtext.web.server.model.IXtextWebDocument
 import org.eclipse.xtext.web.server.model.PrecomputedServiceRegistry
 import org.eclipse.xtext.web.server.model.XtextWebDocument
 import org.eclipse.xtext.web.server.model.XtextWebDocumentAccess
 import org.eclipse.xtext.web.server.persistence.IServerResourceHandler
-import org.eclipse.xtext.web.server.syntaxcoloring.HighlightingService
-import org.eclipse.xtext.web.server.validation.ValidationService
 
 @Singleton
 @Log
 class VSCodeServiceDispatcher {
 	
 	@Inject ContentAssistService contentAssistService
-	@Inject ValidationService validationService
-	@Inject HighlightingService highlightingService
+	@Inject NotifyingValidationService validationService
 	@Inject IServerResourceHandler resourceHandler
 	@Inject XtextWebDocumentAccess.Factory documentAccessFactory
+	@Inject extension DocumentPositionHelper
 	
 	@Inject
 	protected def void registerPreComputedServices(PrecomputedServiceRegistry registry) {
-		registry.addPrecomputedService(highlightingService)
 		registry.addPrecomputedService(validationService)
 	}
 	
@@ -114,7 +110,6 @@ class VSCodeServiceDispatcher {
 	
 	protected def ResponseMessage respond(Object result, IServiceContext context) {
 		val response = new ResponseMessage
-		response.jsonrpc = LanguageServer.JSONRPC_VERSION
 		response.id = context.messageId
 		response.result = result
 		return response
@@ -218,28 +213,6 @@ class VSCodeServiceDispatcher {
 		} catch (IOException ioe) {
 			throw new InvalidRequestException('The requested resource was not found.', context.messageId)
 		}
-	}
-	
-	protected def int getOffset(XtextWebDocumentAccess document, Position position) {
-		document.readOnly[it, cancelIndicator | getOffset(position)]
-	}
-	
-	protected def int getOffset(IXtextWebDocument document, Position position) {
-		var row = 0
-		var col = 0
-		var offset = 0
-		val text = document.text
-		while (offset < text.length && (row < position.line || col < position.character)) {
-			val c = text.charAt(offset)
-			if (c == '\n'.charAt(0)) {
-				row++
-				col = 0
-			} else {
-				col++
-			}
-			offset++
-		}
-		return offset
 	}
 	
 }
