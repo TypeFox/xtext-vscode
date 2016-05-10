@@ -8,7 +8,7 @@
 package io.typefox.xtext.vscode
 
 import com.google.inject.ImplementedBy
-import io.typefox.xtext.vscode.protocol.NotificationMessage
+import io.typefox.lsapi.NotificationMessage
 
 @ImplementedBy(LanguageServer)
 interface INotificationAcceptor {

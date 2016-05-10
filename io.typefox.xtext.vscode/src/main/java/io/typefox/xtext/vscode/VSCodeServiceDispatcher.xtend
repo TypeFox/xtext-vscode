@@ -9,23 +9,28 @@ package io.typefox.xtext.vscode
 
 import com.google.inject.Inject
 import com.google.inject.Singleton
-import io.typefox.xtext.vscode.protocol.CompletionItem
-import io.typefox.xtext.vscode.protocol.Message
-import io.typefox.xtext.vscode.protocol.NotificationMessage
-import io.typefox.xtext.vscode.protocol.RequestMessage
-import io.typefox.xtext.vscode.protocol.ResponseError
-import io.typefox.xtext.vscode.protocol.ResponseMessage
-import io.typefox.xtext.vscode.protocol.TextDocumentIdentifier
-import io.typefox.xtext.vscode.protocol.TextDocumentItem
-import io.typefox.xtext.vscode.protocol.VersionedTextDocumentIdentifier
-import io.typefox.xtext.vscode.protocol.options.CompletionOptions
-import io.typefox.xtext.vscode.protocol.options.ServerCapabilities
-import io.typefox.xtext.vscode.protocol.params.DidChangeTextDocumentParams
-import io.typefox.xtext.vscode.protocol.params.DidCloseTextDocumentParams
-import io.typefox.xtext.vscode.protocol.params.DidOpenTextDocumentParams
-import io.typefox.xtext.vscode.protocol.params.DidSaveTextDocumentParams
-import io.typefox.xtext.vscode.protocol.params.TextDocumentPositionParams
-import io.typefox.xtext.vscode.protocol.result.InitializeResult
+import io.typefox.lsapi.CompletionItemImpl
+import io.typefox.lsapi.CompletionOptionsImpl
+import io.typefox.lsapi.DidChangeTextDocumentParamsImpl
+import io.typefox.lsapi.DidCloseTextDocumentParams
+import io.typefox.lsapi.DidOpenTextDocumentParamsImpl
+import io.typefox.lsapi.DidSaveTextDocumentParams
+import io.typefox.lsapi.InitializeResultImpl
+import io.typefox.lsapi.InvalidMessageException
+import io.typefox.lsapi.Message
+import io.typefox.lsapi.NotificationMessage
+import io.typefox.lsapi.RequestMessage
+import io.typefox.lsapi.ResponseError
+import io.typefox.lsapi.ResponseMessage
+import io.typefox.lsapi.ResponseMessageImpl
+import io.typefox.lsapi.ServerCapabilities
+import io.typefox.lsapi.ServerCapabilitiesImpl
+import io.typefox.lsapi.TextDocumentIdentifier
+import io.typefox.lsapi.TextDocumentIdentifierImpl
+import io.typefox.lsapi.TextDocumentItemImpl
+import io.typefox.lsapi.TextDocumentPositionParamsImpl
+import io.typefox.lsapi.VersionedTextDocumentIdentifier
+import io.typefox.lsapi.VersionedTextDocumentIdentifierImpl
 import io.typefox.xtext.vscode.validation.NotifyingValidationService
 import java.io.IOException
 import org.eclipse.xtext.util.TextRegion
@@ -60,7 +65,7 @@ class VSCodeServiceDispatcher {
 			else if (message instanceof NotificationMessage)
 				message.method
 			else
-				throw new InvalidRequestException("Invalid message type.", null)
+				throw new InvalidMessageException("Invalid message type.", null)
 		switch methodName {
 			case 'initialize':
 				return initialize(context)
@@ -75,14 +80,14 @@ class VSCodeServiceDispatcher {
 			case 'textDocument/completion':
 				return callContentAssistService(context)
 			default:
-				throw new InvalidRequestException('The method ' + methodName + ' is not supported.', messageId, ResponseError.METHOD_NOT_FOUND)
+				throw new InvalidMessageException('The method ' + methodName + ' is not supported.', messageId, ResponseError.METHOD_NOT_FOUND)
 		}
 		return null
 	}
 	
-	protected def configure(ServerCapabilities it) {
+	protected def configure(ServerCapabilitiesImpl it) {
 		textDocumentSync = ServerCapabilities.SYNC_INCREMENTAL
-		completionProvider = new CompletionOptions
+		completionProvider = new CompletionOptionsImpl
 		return it
 	}
 	
@@ -95,11 +100,11 @@ class VSCodeServiceDispatcher {
 			else if (message instanceof NotificationMessage)
 				message.params
 			else
-				throw new InvalidRequestException("Invalid message type.", messageId)
+				throw new InvalidMessageException("Invalid message type.", messageId)
 		if (paramType.isInstance(params))
 			return paramType.cast(params)
 		else
-			throw new InvalidRequestException("Invalid message parameters.", messageId, ResponseError.INVALID_PARAMS)
+			throw new InvalidMessageException("Invalid message parameters.", messageId, ResponseError.INVALID_PARAMS)
 	}
 	
 	protected def String getMessageId(IServiceContext context) {
@@ -109,28 +114,28 @@ class VSCodeServiceDispatcher {
 	}
 	
 	protected def ResponseMessage respond(Object result, IServiceContext context) {
-		val response = new ResponseMessage
+		val response = new ResponseMessageImpl
 		response.id = context.messageId
 		response.result = result
 		return response
 	}
 	
 	protected def initialize(IServiceContext context) {
-		val result = new InitializeResult => [
-			capabilities = configure(new ServerCapabilities)
+		val result = new InitializeResultImpl => [
+			capabilities = configure(new ServerCapabilitiesImpl)
 		]
 		respond(result, context)
 	}
 	
 	protected def void documentOpened(IServiceContext context) {
-		val params = context.getRequestParams(DidOpenTextDocumentParams)
-		val document = getDocumentAccess(params, context)
+		val params = context.getRequestParams(DidOpenTextDocumentParamsImpl)
 		// Support protocol version 1.0
-		if (params.textDocument === null && params.text !== null)
-			params.textDocument = new TextDocumentItem => [
+		if (params.textDocument === null)
+			params.textDocument = new TextDocumentItemImpl => [
 				uri = params.uri
 				text = params.text
 			]
+		val document = getDocumentAccess(params, context)
 		if (params.textDocument?.text !== null) {
 			document.modify[ it, cancelIndicator |
 				text = params.textDocument.text
@@ -142,10 +147,10 @@ class VSCodeServiceDispatcher {
 	}
 	
 	protected def void documentChanged(IServiceContext context) {
-		val params = context.getRequestParams(DidChangeTextDocumentParams)
+		val params = context.getRequestParams(DidChangeTextDocumentParamsImpl)
 		// Support protocol version 1.0
 		if (params.textDocument === null && params.uri !== null)
-			params.textDocument = new VersionedTextDocumentIdentifier => [uri = params.uri]
+			params.textDocument = new VersionedTextDocumentIdentifierImpl => [uri = params.uri]
 		val document = getDocumentAccess(params.textDocument, context)
 		document.modify[ it, cancelIndicator |
 			dirty = true
@@ -174,16 +179,16 @@ class VSCodeServiceDispatcher {
 	}
 	
 	protected def callContentAssistService(IServiceContext context) {
-		val params = context.getRequestParams(TextDocumentPositionParams)
+		val params = context.getRequestParams(TextDocumentPositionParamsImpl)
 		// Support protocol version 1.0
-		if (params.textDocument === null && params.uri !== null)
-			params.textDocument = new TextDocumentIdentifier => [uri = params.uri]
+		if (params.textDocument === null)
+			params.textDocument = new TextDocumentIdentifierImpl => [uri = params.uri]
 		val document = getDocumentAccess(params.textDocument, context)
 		val offset = document.getOffset(params.position)
 		val selection = new TextRegion(offset, 0)
 		val proposals = contentAssistService.createProposals(document, selection, offset, ContentAssistService.DEFAULT_PROPOSALS_LIMIT)
 		val result = proposals.entries.map[ entry |
-			new CompletionItem => [
+			new CompletionItemImpl => [
 				label = entry.label ?: entry.proposal
 				detail = entry.description
 				insertText = entry.proposal
@@ -211,7 +216,7 @@ class VSCodeServiceDispatcher {
 			])
 			return document
 		} catch (IOException ioe) {
-			throw new InvalidRequestException('The requested resource was not found.', context.messageId)
+			throw new InvalidMessageException('The requested resource was not found.', context.messageId)
 		}
 	}
 	

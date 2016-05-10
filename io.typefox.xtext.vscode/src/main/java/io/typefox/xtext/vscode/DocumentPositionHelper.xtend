@@ -7,8 +7,10 @@
  *******************************************************************************/
 package io.typefox.xtext.vscode
 
-import io.typefox.xtext.vscode.protocol.Position
-import io.typefox.xtext.vscode.protocol.Range
+import io.typefox.lsapi.Position
+import io.typefox.lsapi.PositionImpl
+import io.typefox.lsapi.Range
+import io.typefox.lsapi.RangeImpl
 import org.eclipse.xtext.web.server.model.IXtextWebDocument
 import org.eclipse.xtext.web.server.model.XtextWebDocumentAccess
 
@@ -47,12 +49,13 @@ class DocumentPositionHelper {
 		var col = 0
 		val text = document.text
 		val endOffset = Math.min(offset + length, text.length - 1)
-		val result = new Range
+		val result = new RangeImpl
 		for (var i = 0; i < endOffset; i++) {
 			if (i == offset) {
-				result.start = new Position
-				result.start.line = row
-				result.start.character = col
+				val start = new PositionImpl
+				start.line = row
+				start.character = col
+				result.start = start
 			}
 			val c = text.charAt(i)
 			if (c.matches('\n')) {
@@ -62,9 +65,10 @@ class DocumentPositionHelper {
 				col++
 			}
 		}
-		result.end = new Position
-		result.end.line = row
-		result.end.character = col
+		val end = new PositionImpl
+		end.line = row
+		end.character = col
+		result.end = end
 		if (result.start === null)
 			result.start = result.end
 		return result

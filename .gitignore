@@ -4,6 +4,7 @@ bin/
 out/
 node_modules/
 gradle.prefs
+.classpath
 *.class
 *.log
 *._trace

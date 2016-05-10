@@ -7,10 +7,10 @@
  *******************************************************************************/
 package io.typefox.xtext.vscode
 
+import io.typefox.lsapi.Message
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtend.lib.annotations.FinalFieldsConstructor
 import org.eclipse.xtext.web.server.ISession
-import io.typefox.xtext.vscode.protocol.Message
 
 /**
  * Provides the parameters and meta data of a service request.

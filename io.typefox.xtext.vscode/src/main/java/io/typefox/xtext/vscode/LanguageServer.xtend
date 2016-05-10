@@ -9,12 +9,17 @@ package io.typefox.xtext.vscode
 
 import com.google.inject.Inject
 import com.google.inject.Singleton
-import io.typefox.xtext.vscode.protocol.Message
-import io.typefox.xtext.vscode.protocol.NotificationMessage
-import io.typefox.xtext.vscode.protocol.RequestMessage
-import io.typefox.xtext.vscode.protocol.ResponseError
-import io.typefox.xtext.vscode.protocol.ResponseMessage
-import io.typefox.xtext.vscode.protocol.params.InitializeParams
+import io.typefox.lsapi.InitializeParams
+import io.typefox.lsapi.InvalidMessageException
+import io.typefox.lsapi.LanguageServerJsonHandler
+import io.typefox.lsapi.Message
+import io.typefox.lsapi.MessageImpl
+import io.typefox.lsapi.NotificationMessage
+import io.typefox.lsapi.RequestMessage
+import io.typefox.lsapi.ResponseError
+import io.typefox.lsapi.ResponseErrorImpl
+import io.typefox.lsapi.ResponseMessage
+import io.typefox.lsapi.ResponseMessageImpl
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -34,7 +39,7 @@ class LanguageServer implements INotificationAcceptor {
 	static val CONTENT_LENGTH = 'Content-Length'
 	static val CONTENT_TYPE = 'Content-Type'
 	
-	@Inject VSCodeJsonHandler jsonHandler
+	@Inject LanguageServerJsonHandler jsonHandler
 	
 	@Inject VSCodeServiceDispatcher serviceDispatcher
 	
@@ -144,11 +149,12 @@ class LanguageServer implements INotificationAcceptor {
 	
 	protected def boolean handleRequest(String content, String charset)
 			throws IOException {
-		var Message response
+		var String requestId
 		try {
 			val request = jsonHandler.parseMessage(content)
 			if (request instanceof RequestMessage) {
 				logMessage('Request:', content)
+				requestId = request.id
 				switch request.method {
 					case 'initialize':
 						if (request.params instanceof InitializeParams)
@@ -165,17 +171,19 @@ class LanguageServer implements INotificationAcceptor {
 			}
 			
 			val context = new IServiceContext.Impl(request, session)
-			response = serviceDispatcher.callService(context)
+			val response = serviceDispatcher.callService(context)
 			
-		} catch (InvalidRequestException e) {
+			if (response !== null)
+				send(response, charset)
+		} catch (InvalidMessageException e) {
 			logException(e)
-			response = respond(e.message, e.errorCode, e.requestId)
+			val response = respondError(e.message, e.errorCode, e.requestId)
+			send(response, charset)
 		} catch (Exception e) {
 			logException(e)
-			response = respond(e.message, ResponseError.INTERNAL_ERROR, null)
-		}
-		if (response !== null)
+			val response = respondError(e.message, ResponseError.INTERNAL_ERROR, requestId)
 			send(response, charset)
+		}
 		return true
 	}
 	
@@ -186,7 +194,7 @@ class LanguageServer implements INotificationAcceptor {
 	protected def send(Message message, String charset) {
 		if (out !== null) {
 			if (message.jsonrpc === null)
-				message.jsonrpc = JSONRPC_VERSION
+				(message as MessageImpl).jsonrpc = JSONRPC_VERSION
 			synchronized (out) {
 				val messageText = jsonHandler.serialize(message)
 				if (message instanceof ResponseMessage)
@@ -201,12 +209,12 @@ class LanguageServer implements INotificationAcceptor {
 		}
 	}
 	
-	protected def ResponseMessage respond(String errorMessage, int errorCode, String requestId) {
-		val response = new ResponseMessage
+	protected def ResponseMessage respondError(String errorMessage, int errorCode, String requestId) {
+		val response = new ResponseMessageImpl
 		response.jsonrpc = JSONRPC_VERSION
 		if (requestId !== null)
 			response.id = requestId
-		response.error = new ResponseError => [
+		response.error = new ResponseErrorImpl => [
 			message = errorMessage
 			code = errorCode
 		]

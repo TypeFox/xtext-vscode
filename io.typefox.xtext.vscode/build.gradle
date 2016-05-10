@@ -1,5 +1,5 @@
 dependencies {
 	compile "org.eclipse.xtext:org.eclipse.xtext.web:${xtextVersion}"
 	compile "org.eclipse.xtend:org.eclipse.xtend.lib:${xtextVersion}"
-    compile "com.google.code.gson:gson:2.5"
+	compile "io.typefox.lsapi:lsapi:0.1.0-SNAPSHOT"
 }

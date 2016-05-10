@@ -8,11 +8,12 @@
 package io.typefox.xtext.vscode.validation
 
 import com.google.inject.Inject
+import io.typefox.lsapi.Diagnostic
+import io.typefox.lsapi.DiagnosticImpl
+import io.typefox.lsapi.NotificationMessageImpl
+import io.typefox.lsapi.PublishDiagnosticsParamsImpl
 import io.typefox.xtext.vscode.DocumentPositionHelper
 import io.typefox.xtext.vscode.INotificationAcceptor
-import io.typefox.xtext.vscode.protocol.Diagnostic
-import io.typefox.xtext.vscode.protocol.NotificationMessage
-import io.typefox.xtext.vscode.protocol.params.PublishDiagnosticsParams
 import org.eclipse.xtext.util.CancelIndicator
 import org.eclipse.xtext.web.server.model.IXtextWebDocument
 import org.eclipse.xtext.web.server.validation.ValidationService
@@ -25,7 +26,7 @@ class NotifyingValidationService extends ValidationService {
 	override compute(IXtextWebDocument document, CancelIndicator cancelIndicator) {
 		val result = super.compute(document, cancelIndicator)
 		val diagList = result.issues.map[ issue |
-			new Diagnostic => [
+			new DiagnosticImpl => [
 				source = 'Xtext'
 				range = getRange(document, issue.offset, issue.length)
 				severity = switch issue.severity {
@@ -37,9 +38,9 @@ class NotifyingValidationService extends ValidationService {
 				message = issue.description
 			]
 		]
-		notificationAcceptor.accept(new NotificationMessage => [
+		notificationAcceptor.accept(new NotificationMessageImpl => [
 			method = 'textDocument/publishDiagnostics'
-			params = new PublishDiagnosticsParams => [
+			params = new PublishDiagnosticsParamsImpl => [
 				uri = document.resourceId
 				diagnostics = diagList
 			]
