@@ -7,22 +7,21 @@
  *******************************************************************************/
 package io.typefox.xtext.vscode
 
+import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtend.lib.annotations.FinalFieldsConstructor
+import org.eclipse.xtext.web.server.ISession
 
 @FinalFieldsConstructor
 class ServiceContextAdapter implements org.eclipse.xtext.web.server.IServiceContext {
 	
-	val IServiceContext delegate
+	@Accessors
+	val ISession session
 	
 	override getParameterKeys() {
 		emptySet
 	}
 	
 	override getParameter(String key) {
-	}
-	
-	override getSession() {
-		delegate.session
 	}
 	
 }

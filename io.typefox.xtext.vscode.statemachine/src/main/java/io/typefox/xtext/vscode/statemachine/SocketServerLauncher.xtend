@@ -8,7 +8,7 @@
 package io.typefox.xtext.vscode.statemachine
 
 import com.google.inject.Provider
-import io.typefox.xtext.vscode.LanguageServer
+import io.typefox.xtext.vscode.VSCodeJsonAdapter
 import java.io.IOException
 import java.io.PrintWriter
 import java.net.InetSocketAddress
@@ -25,11 +25,12 @@ class SocketServerLauncher {
 		var ServerSocketChannel serverSocket
 		try {
 			val Provider<ExecutorService> executorServiceProvider = [Executors.newCachedThreadPool => [executorServices += it]]
-			val resourceBaseProvider = new LanguageServer.ResourceBaseProvider
+			val resourceBaseProvider = new VSCodeJsonAdapter.ResourceBaseProvider
 			val injector = new StatemachineWebSetup(executorServiceProvider, resourceBaseProvider).createInjectorAndDoEMFRegistration()
-			val server = injector.getInstance(LanguageServer)
-			server.log = new PrintWriter(System.out)
+			val server = injector.getInstance(VSCodeJsonAdapter)
 			server.resourceBaseProvider = resourceBaseProvider
+			server.errorLog = new PrintWriter(System.err)
+			server.messageLog = new PrintWriter(System.out)
 			
 			serverSocket = ServerSocketChannel.open()
 			val address = new InetSocketAddress('localhost', 5007)
@@ -40,7 +41,11 @@ class SocketServerLauncher {
 				val in = Channels.newInputStream(channel)
 				val out = Channels.newOutputStream(channel)
 				println('Connection accepted')
-				server.serve(in, out)
+				
+				server.connect(in, out)
+				server.start()
+				server.join()
+				
 				channel.close()
 				println('Connection closed')
 			}

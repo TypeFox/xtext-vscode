@@ -11,10 +11,10 @@ subprojects {
 	ext.xtextVersion = '2.10.0-SNAPSHOT'
 	repositories {
 		jcenter()
+		mavenLocal()
 		maven {
 			url 'https://oss.sonatype.org/content/repositories/snapshots'
 		}
-		mavenLocal()
 	}
 
 	apply plugin: 'java'

@@ -10,17 +10,15 @@ package io.typefox.xtext.vscode.validation
 import com.google.inject.Inject
 import io.typefox.lsapi.Diagnostic
 import io.typefox.lsapi.DiagnosticImpl
-import io.typefox.lsapi.NotificationMessageImpl
-import io.typefox.lsapi.PublishDiagnosticsParamsImpl
 import io.typefox.xtext.vscode.DocumentPositionHelper
-import io.typefox.xtext.vscode.INotificationAcceptor
+import io.typefox.xtext.vscode.XtextWebLanguageServer
 import org.eclipse.xtext.util.CancelIndicator
 import org.eclipse.xtext.web.server.model.IXtextWebDocument
 import org.eclipse.xtext.web.server.validation.ValidationService
 
 class NotifyingValidationService extends ValidationService {
 	
-	@Inject INotificationAcceptor notificationAcceptor
+	@Inject XtextWebLanguageServer server
 	@Inject extension DocumentPositionHelper
 	
 	override compute(IXtextWebDocument document, CancelIndicator cancelIndicator) {
@@ -38,13 +36,7 @@ class NotifyingValidationService extends ValidationService {
 				message = issue.description
 			]
 		]
-		notificationAcceptor.accept(new NotificationMessageImpl => [
-			method = 'textDocument/publishDiagnostics'
-			params = new PublishDiagnosticsParamsImpl => [
-				uri = document.resourceId
-				diagnostics = diagList
-			]
-		])
+		server.publishDiagnostics(document.resourceId, diagList)
 		return result
 	}
 	

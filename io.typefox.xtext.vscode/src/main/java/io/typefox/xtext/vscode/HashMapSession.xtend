@@ -39,4 +39,8 @@ class HashMapSession implements ISession {
 		map.remove(key)
 	}
 	
+	def void clear() {
+		map.clear()
+	}
+	
 }

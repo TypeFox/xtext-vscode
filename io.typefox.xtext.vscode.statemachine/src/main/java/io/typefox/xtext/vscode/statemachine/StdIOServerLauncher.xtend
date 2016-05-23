@@ -8,7 +8,7 @@
 package io.typefox.xtext.vscode.statemachine
 
 import com.google.inject.Provider
-import io.typefox.xtext.vscode.LanguageServer
+import io.typefox.xtext.vscode.VSCodeJsonAdapter
 import java.io.IOException
 import java.io.PrintWriter
 import java.util.List
@@ -23,13 +23,16 @@ class StdIOServerLauncher {
 		try {
 			log = new PrintWriter('LanguageServer.log')
 			val Provider<ExecutorService> executorServiceProvider = [Executors.newCachedThreadPool => [executorServices += it]]
-			val resourceBaseProvider = new LanguageServer.ResourceBaseProvider
+			val resourceBaseProvider = new VSCodeJsonAdapter.ResourceBaseProvider
 			val injector = new StatemachineWebSetup(executorServiceProvider, resourceBaseProvider).createInjectorAndDoEMFRegistration()
-			val server = injector.getInstance(LanguageServer)
-			server.log = log
+			val server = injector.getInstance(VSCodeJsonAdapter)
 			server.resourceBaseProvider = resourceBaseProvider
+			server.errorLog = log
+			server.messageLog = log
 			
-			server.serve(System.in, System.out)
+			server.connect(System.in, System.out)
+			server.start()
+			server.join()
 			
 		} catch (Throwable t) {
 			t.printStackTrace()

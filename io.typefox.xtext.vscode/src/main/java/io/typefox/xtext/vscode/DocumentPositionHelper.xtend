@@ -9,7 +9,6 @@ package io.typefox.xtext.vscode
 
 import io.typefox.lsapi.Position
 import io.typefox.lsapi.PositionImpl
-import io.typefox.lsapi.Range
 import io.typefox.lsapi.RangeImpl
 import org.eclipse.xtext.web.server.model.IXtextWebDocument
 import org.eclipse.xtext.web.server.model.XtextWebDocumentAccess
@@ -38,11 +37,11 @@ class DocumentPositionHelper {
 		return offset
 	}
 	
-	def Range getRange(XtextWebDocumentAccess document, int offset, int length) {
+	def RangeImpl getRange(XtextWebDocumentAccess document, int offset, int length) {
 		document.readOnly[it, cancelIndicator | getRange(offset, length)]
 	}
 	
-	def Range getRange(IXtextWebDocument document, int offset, int length) {
+	def RangeImpl getRange(IXtextWebDocument document, int offset, int length) {
 		if (length < 0)
 			throw new IllegalArgumentException('Length must not be negative.')
 		var row = 0
