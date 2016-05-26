@@ -14,6 +14,8 @@ import org.eclipse.xtext.web.server.persistence.FileResourceHandler
 import org.eclipse.xtext.web.server.persistence.IResourceBaseProvider
 import org.eclipse.xtext.web.server.persistence.IServerResourceHandler
 import org.xtext.example.statemachine.ide.contentassist.StatemachineWebContentProposalProvider
+import io.typefox.lsapi.LanguageServer
+import io.typefox.xtext.vscode.XtextWebLanguageServer
 
 /** 
  * Use this class to register components to be used within the web application.
@@ -33,6 +35,10 @@ class StatemachineWebModule extends AbstractStatemachineWebModule {
 	
 	def Class<? extends IdeContentProposalProvider> bindIdeContentProposalProvider() {
 		return StatemachineWebContentProposalProvider
+	}
+	
+	def Class<? extends LanguageServer> bindLanguageServer() {
+		return XtextWebLanguageServer
 	}
 
 }

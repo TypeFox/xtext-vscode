@@ -19,6 +19,7 @@ import java.io.PrintWriter
 import org.eclipse.emf.common.util.URI
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtext.web.server.persistence.IResourceBaseProvider
+import io.typefox.lsapi.LanguageServer
 
 class VSCodeJsonAdapter extends LanguageServerToJsonAdapter {
 	
@@ -35,7 +36,7 @@ class VSCodeJsonAdapter extends LanguageServerToJsonAdapter {
 	boolean exitRequested
 	
 	@Inject
-	new(XtextWebLanguageServer server) {
+	new(LanguageServer server) {
 		super(server)
 		protocol.addErrorListener[ message, throwable |
 			if (errorLog !== null) {

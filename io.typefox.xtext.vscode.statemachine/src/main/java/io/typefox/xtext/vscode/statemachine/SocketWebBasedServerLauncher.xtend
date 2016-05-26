@@ -7,7 +7,6 @@
  *******************************************************************************/
 package io.typefox.xtext.vscode.statemachine
 
-import com.google.inject.Guice
 import com.google.inject.Provider
 import io.typefox.xtext.vscode.VSCodeJsonAdapter
 import java.io.IOException
@@ -18,12 +17,8 @@ import java.nio.channels.ServerSocketChannel
 import java.util.List
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import org.eclipse.xtext.ide.server.ServerModule
-import org.eclipse.xtext.resource.FileExtensionProvider
-import org.eclipse.xtext.resource.IResourceServiceProvider
-import org.eclipse.xtext.ISetup
 
-class SocketServerLauncher {
+class SocketWebBasedServerLauncher {
 	
 	def static void main(String[] args) {
 		val List<ExecutorService> executorServices = newArrayList
@@ -31,12 +26,7 @@ class SocketServerLauncher {
 		try {
 			val Provider<ExecutorService> executorServiceProvider = [Executors.newCachedThreadPool => [executorServices += it]]
 			val resourceBaseProvider = new VSCodeJsonAdapter.ResourceBaseProvider
-			val statemachineWebSetup = new StatemachineWebSetup(executorServiceProvider, resourceBaseProvider)
-			
-			val injector = Guice.createInjector(new ServerModule)
-			val registry = injector.getInstance(IResourceServiceProvider.Registry)
-			registry.registerLanguage(statemachineWebSetup)
-			
+			val injector = new StatemachineWebSetup(executorServiceProvider, resourceBaseProvider).createInjectorAndDoEMFRegistration()
 			val server = injector.getInstance(VSCodeJsonAdapter)
 			server.resourceBaseProvider = resourceBaseProvider
 			server.errorLog = new PrintWriter(System.err)
@@ -70,11 +60,6 @@ class SocketServerLauncher {
 				} catch (IOException e) {}
 			}
 		}
-	}
-	
-	protected def static registerLanguage(IResourceServiceProvider.Registry registry, ISetup setup) {
-		val injector = setup.createInjectorAndDoEMFRegistration
-		registry.extensionToFactoryMap.put(injector.getInstance(FileExtensionProvider).primaryFileExtension, injector.getInstance(IResourceServiceProvider))
 	}
 	
 }
