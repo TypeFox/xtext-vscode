@@ -12,14 +12,14 @@ import io.typefox.lsapi.InitializeParams
 import io.typefox.lsapi.NotificationMessage
 import io.typefox.lsapi.RequestMessage
 import io.typefox.lsapi.ResponseMessage
-import io.typefox.lsapi.json.LanguageServerToJsonAdapter
-import io.typefox.lsapi.json.MessageMethods
+import io.typefox.lsapi.services.LanguageServer
+import io.typefox.lsapi.services.json.LanguageServerToJsonAdapter
+import io.typefox.lsapi.services.json.MessageMethods
 import java.io.File
 import java.io.PrintWriter
 import org.eclipse.emf.common.util.URI
 import org.eclipse.xtend.lib.annotations.Accessors
 import org.eclipse.xtext.web.server.persistence.IResourceBaseProvider
-import io.typefox.lsapi.LanguageServer
 
 class VSCodeJsonAdapter extends LanguageServerToJsonAdapter {
 	

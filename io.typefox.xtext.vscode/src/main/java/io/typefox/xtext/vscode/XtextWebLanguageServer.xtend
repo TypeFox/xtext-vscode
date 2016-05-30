@@ -14,6 +14,7 @@ import io.typefox.lsapi.CodeLens
 import io.typefox.lsapi.CodeLensParams
 import io.typefox.lsapi.CompletionItem
 import io.typefox.lsapi.CompletionItemImpl
+import io.typefox.lsapi.CompletionListImpl
 import io.typefox.lsapi.CompletionOptionsImpl
 import io.typefox.lsapi.DiagnosticImpl
 import io.typefox.lsapi.DidChangeConfigurationParams
@@ -28,9 +29,7 @@ import io.typefox.lsapi.DocumentRangeFormattingParams
 import io.typefox.lsapi.DocumentSymbolParams
 import io.typefox.lsapi.InitializeParams
 import io.typefox.lsapi.InitializeResultImpl
-import io.typefox.lsapi.LanguageServer
 import io.typefox.lsapi.MessageParams
-import io.typefox.lsapi.NotificationCallback
 import io.typefox.lsapi.PublishDiagnosticsParams
 import io.typefox.lsapi.PublishDiagnosticsParamsImpl
 import io.typefox.lsapi.ReferenceParams
@@ -41,15 +40,18 @@ import io.typefox.lsapi.ShowMessageRequestParams
 import io.typefox.lsapi.TextDocumentIdentifier
 import io.typefox.lsapi.TextDocumentItem
 import io.typefox.lsapi.TextDocumentPositionParams
-import io.typefox.lsapi.TextDocumentService
-import io.typefox.lsapi.WindowService
-import io.typefox.lsapi.WorkspaceService
 import io.typefox.lsapi.WorkspaceSymbolParams
-import io.typefox.lsapi.json.InvalidMessageException
+import io.typefox.lsapi.services.LanguageServer
+import io.typefox.lsapi.services.TextDocumentService
+import io.typefox.lsapi.services.WindowService
+import io.typefox.lsapi.services.WorkspaceService
+import io.typefox.lsapi.services.json.InvalidMessageException
 import io.typefox.xtext.vscode.validation.NotifyingValidationService
 import java.io.IOException
 import java.util.ArrayList
 import java.util.List
+import java.util.concurrent.CompletableFuture
+import java.util.function.Consumer
 import org.eclipse.xtext.util.TextRegion
 import org.eclipse.xtext.util.Wrapper
 import org.eclipse.xtext.web.server.contentassist.ContentAssistService
@@ -69,10 +71,10 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 	
 	val session = new HashMapSession
 	
-	val List<NotificationCallback<PublishDiagnosticsParams>> diagnosticsCallbacks = newArrayList
-	val List<NotificationCallback<MessageParams>> logMessageCallbacks = newArrayList
-	val List<NotificationCallback<MessageParams>> showMessageCallbacs = newArrayList
-	val List<NotificationCallback<ShowMessageRequestParams>> showMessageRequestCallbacs = newArrayList
+	val List<Consumer<PublishDiagnosticsParams>> diagnosticsCallbacks = newArrayList
+	val List<Consumer<MessageParams>> logMessageCallbacks = newArrayList
+	val List<Consumer<MessageParams>> showMessageCallbacs = newArrayList
+	val List<Consumer<ShowMessageRequestParams>> showMessageRequestCallbacs = newArrayList
 	
 	@Inject
 	protected def void registerPrecomputedServices(PrecomputedServiceRegistry registry) {
@@ -98,9 +100,10 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 	}
 	
 	override initialize(InitializeParams params) {
-		new InitializeResultImpl => [
+		val result = new InitializeResultImpl => [
 			capabilities = configure(new ServerCapabilitiesImpl)
 		]
+		CompletableFuture.completedFuture(result)
 	}
 	
 	override shutdown() {
@@ -143,13 +146,17 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 		val document = params.textDocument?.documentAccess ?: getDocumentAccess(params.uri, null)
 		val offset = document.getOffset(params.position)
 		val selection = new TextRegion(offset, 0)
-		val proposals = contentAssistService.createProposals(document, selection, offset, ContentAssistService.DEFAULT_PROPOSALS_LIMIT)
-		return proposals.entries.map[ entry |
-			new CompletionItemImpl => [
-				label = entry.label ?: entry.proposal
-				detail = entry.description
-				insertText = entry.proposal
+		CompletableFuture.supplyAsync[
+			val proposals = contentAssistService.createProposals(document, selection, offset, ContentAssistService.DEFAULT_PROPOSALS_LIMIT)
+			val result = new CompletionListImpl
+			result.items = proposals.entries.map[ entry |
+				new CompletionItemImpl => [
+					label = entry.label ?: entry.proposal
+					detail = entry.description
+					insertText = entry.proposal
+				]
 			]
+			return result
 		]
 	}
 	
@@ -221,7 +228,7 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 		throw new InvalidMessageException("Method not supported.")
 	}
 	
-	override onPublishDiagnostics(NotificationCallback<PublishDiagnosticsParams> callback) {
+	override onPublishDiagnostics(Consumer<PublishDiagnosticsParams> callback) {
 		synchronized (diagnosticsCallbacks) {
 			diagnosticsCallbacks.add(callback)
 		}
@@ -235,7 +242,7 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 			new ArrayList(diagnosticsCallbacks)
 		}
 		for (c : callbacks) {
-			c.call(params)
+			c.accept(params)
 		}
 	}
 	
@@ -267,19 +274,19 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 		throw new InvalidMessageException("Method not supported.")
 	}
 	
-	override onLogMessage(NotificationCallback<MessageParams> callback) {
+	override onLogMessage(Consumer<MessageParams> callback) {
 		synchronized (logMessageCallbacks) {
 			logMessageCallbacks.add(callback)
 		}
 	}
 	
-	override onShowMessage(NotificationCallback<MessageParams> callback) {
+	override onShowMessage(Consumer<MessageParams> callback) {
 		synchronized (showMessageCallbacs) {
 			showMessageCallbacs.add(callback)
 		}
 	}
 	
-	override onShowMessageRequest(NotificationCallback<ShowMessageRequestParams> callback) {
+	override onShowMessageRequest(Consumer<ShowMessageRequestParams> callback) {
 		synchronized (showMessageRequestCallbacs) {
 			showMessageRequestCallbacs.add(callback)
 		}

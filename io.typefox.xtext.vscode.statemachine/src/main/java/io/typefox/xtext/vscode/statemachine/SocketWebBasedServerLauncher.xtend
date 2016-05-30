@@ -12,8 +12,10 @@ import io.typefox.xtext.vscode.VSCodeJsonAdapter
 import java.io.IOException
 import java.io.PrintWriter
 import java.net.InetSocketAddress
+import java.nio.channels.AsynchronousServerSocketChannel
+import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.Channels
-import java.nio.channels.ServerSocketChannel
+import java.nio.channels.CompletionHandler
 import java.util.List
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -22,7 +24,7 @@ class SocketWebBasedServerLauncher {
 	
 	def static void main(String[] args) {
 		val List<ExecutorService> executorServices = newArrayList
-		var ServerSocketChannel serverSocket
+		var AsynchronousServerSocketChannel serverSocket
 		try {
 			val Provider<ExecutorService> executorServiceProvider = [Executors.newCachedThreadPool => [executorServices += it]]
 			val resourceBaseProvider = new VSCodeJsonAdapter.ResourceBaseProvider
@@ -32,22 +34,31 @@ class SocketWebBasedServerLauncher {
 			server.errorLog = new PrintWriter(System.err)
 			server.messageLog = new PrintWriter(System.out)
 			
-			serverSocket = ServerSocketChannel.open()
+			serverSocket = AsynchronousServerSocketChannel.open()
 			val address = new InetSocketAddress('localhost', 5007)
 			serverSocket.bind(address)
+			println('Listening to ' + address)
+			serverSocket.accept(null, new CompletionHandler<AsynchronousSocketChannel, Object> {
+				
+				override completed(AsynchronousSocketChannel channel, Object attachment) {
+					val in = Channels.newInputStream(channel)
+					val out = Channels.newOutputStream(channel)
+					println('Connection accepted')
+					
+					server.connect(in, out)
+					server.start()
+					server.join()
+					
+					channel.close()
+					println('Connection closed')
+				}
+				
+				override failed(Throwable exc, Object attachment) {
+					exc.printStackTrace()
+				}
+			})
 			while (!server.exitRequested) {
-				println('Listening to ' + address)
-				val channel = serverSocket.accept()
-				val in = Channels.newInputStream(channel)
-				val out = Channels.newOutputStream(channel)
-				println('Connection accepted')
-				
-				server.connect(in, out)
-				server.start()
-				server.join()
-				
-				channel.close()
-				println('Connection closed')
+				Thread.sleep(2000)
 			}
 			
 		} catch (Throwable t) {

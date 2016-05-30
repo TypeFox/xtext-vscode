@@ -8,14 +8,14 @@
 package io.typefox.xtext.vscode.statemachine
 
 import com.google.inject.Binder
+import io.typefox.lsapi.services.LanguageServer
+import io.typefox.xtext.vscode.XtextWebLanguageServer
 import org.eclipse.xtend.lib.annotations.FinalFieldsConstructor
 import org.eclipse.xtext.ide.editor.contentassist.IdeContentProposalProvider
 import org.eclipse.xtext.web.server.persistence.FileResourceHandler
 import org.eclipse.xtext.web.server.persistence.IResourceBaseProvider
 import org.eclipse.xtext.web.server.persistence.IServerResourceHandler
 import org.xtext.example.statemachine.ide.contentassist.StatemachineWebContentProposalProvider
-import io.typefox.lsapi.LanguageServer
-import io.typefox.xtext.vscode.XtextWebLanguageServer
 
 /** 
  * Use this class to register components to be used within the web application.
@@ -28,6 +28,10 @@ class StatemachineWebModule extends AbstractStatemachineWebModule {
 	def void configureResourceBaseProvider(Binder binder) {
 		if (resourceBaseProvider !== null) binder.bind(IResourceBaseProvider).toInstance(resourceBaseProvider)
 	}
+	
+	def Class<? extends LanguageServer> bindLanguageServer() {
+		XtextWebLanguageServer
+	}
 
 	def Class<? extends IServerResourceHandler> bindIServerResourceHandler() {
 		return FileResourceHandler
@@ -37,8 +41,4 @@ class StatemachineWebModule extends AbstractStatemachineWebModule {
 		return StatemachineWebContentProposalProvider
 	}
 	
-	def Class<? extends LanguageServer> bindLanguageServer() {
-		return XtextWebLanguageServer
-	}
-
 }
