@@ -46,7 +46,6 @@ class SocketWebBasedServerLauncher {
 					println('Connection accepted')
 					
 					server.connect(in, out)
-					server.start()
 					server.join()
 					
 					channel.close()

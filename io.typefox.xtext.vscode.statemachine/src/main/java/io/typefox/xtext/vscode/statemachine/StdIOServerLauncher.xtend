@@ -31,7 +31,6 @@ class StdIOServerLauncher {
 			server.messageLog = log
 			
 			server.connect(System.in, System.out)
-			server.start()
 			server.join()
 			
 		} catch (Throwable t) {
