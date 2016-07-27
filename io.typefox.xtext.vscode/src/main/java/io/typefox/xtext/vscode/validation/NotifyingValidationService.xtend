@@ -8,8 +8,8 @@
 package io.typefox.xtext.vscode.validation
 
 import com.google.inject.Inject
-import io.typefox.lsapi.Diagnostic
-import io.typefox.lsapi.DiagnosticImpl
+import io.typefox.lsapi.DiagnosticSeverity
+import io.typefox.lsapi.impl.DiagnosticImpl
 import io.typefox.xtext.vscode.DocumentPositionHelper
 import io.typefox.xtext.vscode.XtextWebLanguageServer
 import org.eclipse.xtext.util.CancelIndicator
@@ -28,10 +28,10 @@ class NotifyingValidationService extends ValidationService {
 				source = 'Xtext'
 				range = getRange(document, issue.offset, issue.length)
 				severity = switch issue.severity {
-					case 'error': Diagnostic.SEVERITY_ERROR
-					case 'warning': Diagnostic.SEVERITY_WARNING
-					case 'info': Diagnostic.SEVERITY_INFO
-					default: Diagnostic.SEVERITY_HINT
+					case 'error': DiagnosticSeverity.Error
+					case 'warning': DiagnosticSeverity.Warning
+					case 'info': DiagnosticSeverity.Information
+					default: DiagnosticSeverity.Hint
 				}
 				message = issue.description
 			]

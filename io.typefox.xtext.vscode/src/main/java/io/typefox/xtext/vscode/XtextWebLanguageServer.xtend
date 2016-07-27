@@ -13,10 +13,6 @@ import io.typefox.lsapi.CodeActionParams
 import io.typefox.lsapi.CodeLens
 import io.typefox.lsapi.CodeLensParams
 import io.typefox.lsapi.CompletionItem
-import io.typefox.lsapi.CompletionItemImpl
-import io.typefox.lsapi.CompletionListImpl
-import io.typefox.lsapi.CompletionOptionsImpl
-import io.typefox.lsapi.DiagnosticImpl
 import io.typefox.lsapi.DidChangeConfigurationParams
 import io.typefox.lsapi.DidChangeTextDocumentParams
 import io.typefox.lsapi.DidChangeWatchedFilesParams
@@ -28,19 +24,23 @@ import io.typefox.lsapi.DocumentOnTypeFormattingParams
 import io.typefox.lsapi.DocumentRangeFormattingParams
 import io.typefox.lsapi.DocumentSymbolParams
 import io.typefox.lsapi.InitializeParams
-import io.typefox.lsapi.InitializeResultImpl
 import io.typefox.lsapi.MessageParams
 import io.typefox.lsapi.PublishDiagnosticsParams
-import io.typefox.lsapi.PublishDiagnosticsParamsImpl
 import io.typefox.lsapi.ReferenceParams
 import io.typefox.lsapi.RenameParams
-import io.typefox.lsapi.ServerCapabilities
-import io.typefox.lsapi.ServerCapabilitiesImpl
 import io.typefox.lsapi.ShowMessageRequestParams
 import io.typefox.lsapi.TextDocumentIdentifier
 import io.typefox.lsapi.TextDocumentItem
 import io.typefox.lsapi.TextDocumentPositionParams
+import io.typefox.lsapi.TextDocumentSyncKind
 import io.typefox.lsapi.WorkspaceSymbolParams
+import io.typefox.lsapi.impl.CompletionItemImpl
+import io.typefox.lsapi.impl.CompletionListImpl
+import io.typefox.lsapi.impl.CompletionOptionsImpl
+import io.typefox.lsapi.impl.DiagnosticImpl
+import io.typefox.lsapi.impl.InitializeResultImpl
+import io.typefox.lsapi.impl.PublishDiagnosticsParamsImpl
+import io.typefox.lsapi.impl.ServerCapabilitiesImpl
 import io.typefox.lsapi.services.LanguageServer
 import io.typefox.lsapi.services.TextDocumentService
 import io.typefox.lsapi.services.WindowService
@@ -94,7 +94,7 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 	}
 	
 	protected def configure(ServerCapabilitiesImpl it) {
-		textDocumentSync = ServerCapabilities.SYNC_INCREMENTAL
+		textDocumentSync = TextDocumentSyncKind.Incremental
 		completionProvider = new CompletionOptionsImpl
 		return it
 	}
@@ -112,6 +112,10 @@ class XtextWebLanguageServer implements LanguageServer, TextDocumentService, Win
 	
 	override exit() {
 		// Nothing to do here
+	}
+	
+	override onTelemetryEvent(Consumer<Object> callback) {
+		throw new UnsupportedOperationException("TODO: auto-generated method stub")
 	}
 	
 	protected def getDocumentAccess(TextDocumentIdentifier docIdentifier) {

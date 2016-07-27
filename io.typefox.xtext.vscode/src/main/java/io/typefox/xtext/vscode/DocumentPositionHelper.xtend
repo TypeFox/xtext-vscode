@@ -8,8 +8,8 @@
 package io.typefox.xtext.vscode
 
 import io.typefox.lsapi.Position
-import io.typefox.lsapi.PositionImpl
-import io.typefox.lsapi.RangeImpl
+import io.typefox.lsapi.impl.PositionImpl
+import io.typefox.lsapi.impl.RangeImpl
 import org.eclipse.xtext.web.server.model.IXtextWebDocument
 import org.eclipse.xtext.web.server.model.XtextWebDocumentAccess
 
